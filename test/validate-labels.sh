@@ -119,6 +119,44 @@ else
   echo "INFO: target_repos.txt 未配備、検証スキップ"
 fi
 
+# T-008 (FR-009): Issue Forms templates が配備済み
+TEMPLATES_DIR="$(dirname "$0")/../templates"
+LOCAL_FAILED=0
+for f in \
+    ".github/ISSUE_TEMPLATE/bug.yml" \
+    ".github/ISSUE_TEMPLATE/feature.yml" \
+    ".github/advanced-issue-labeler.yml" \
+    ".github/workflows/label-from-issue.yml"; do
+  if [[ ! -f "$TEMPLATES_DIR/$f" ]]; then
+    fail "T-008: shared template '$f' が無い"
+    LOCAL_FAILED=1
+  fi
+done
+[[ $LOCAL_FAILED -eq 0 ]] && pass "T-008: shared templates 4ファイル配備確認"
+
+# T-008b (FR-009b, FR-010): bug.yml / feature.yml が priority dropdown を持つ
+LOCAL_FAILED=0
+for form in bug.yml feature.yml; do
+  FORM_PATH="$TEMPLATES_DIR/.github/ISSUE_TEMPLATE/$form"
+  if [[ -f "$FORM_PATH" ]]; then
+    if ! yq -e '.body[] | select(.id == "priority") | select(.type == "dropdown")' "$FORM_PATH" >/dev/null 2>&1; then
+      fail "T-008b: $form に priority dropdown が無い"
+      LOCAL_FAILED=1
+    fi
+  fi
+done
+[[ $LOCAL_FAILED -eq 0 ]] && pass "T-008b: priority dropdown 配備確認"
+
+# T-016 (FR-018): advanced-issue-labeler.yml が priority mapping を持つ
+LABELER="$TEMPLATES_DIR/.github/advanced-issue-labeler.yml"
+if [[ -f "$LABELER" ]]; then
+  if yq -e '.policy[] | .section[] | select(.id == "priority")' "$LABELER" >/dev/null 2>&1; then
+    pass "T-016: advanced-issue-labeler.yml priority mapping 配備確認"
+  else
+    fail "T-016: advanced-issue-labeler.yml に priority section が無い"
+  fi
+fi
+
 if [[ $EXIT_CODE -eq 0 ]]; then
   echo ""
   echo "ALL TESTS PASSED"

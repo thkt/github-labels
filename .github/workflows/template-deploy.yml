@@ -1,0 +1,147 @@
+name: Deploy issue templates to target repos
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Deploy mode
+        required: true
+        type: choice
+        options:
+          - dry-run
+          - apply
+        default: dry-run
+      target_filter:
+        description: "Optional: deploy to single repo only (owner/name). Empty = all targets."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  read-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.read.outputs.repos }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          if [[ -n "${{ inputs.target_filter }}" ]]; then
+            REPOS=$(jq -nc --arg r "${{ inputs.target_filter }}" '[$r]')
+          else
+            REPOS=$(grep -v '^[[:space:]]*$' target_repos.txt | grep -v '^#' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
+          echo "Repo count: $(echo "$REPOS" | jq 'length')"
+
+  deploy:
+    needs: read-targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        repo: ${{ fromJson(needs.read-targets.outputs.repos) }}
+    name: Deploy ${{ matrix.repo }}
+    steps:
+      - name: Checkout leader repo (templates source)
+        uses: actions/checkout@v4
+        with:
+          path: leader
+
+      - name: Clone target repo
+        env:
+          LABEL_SYNC_TOKEN: ${{ secrets.LABEL_SYNC_TOKEN }}
+        run: |
+          if [[ -z "$LABEL_SYNC_TOKEN" ]]; then
+            echo "::error::LABEL_SYNC_TOKEN secret is missing"
+            exit 1
+          fi
+          git clone --depth 1 "https://x-access-token:$LABEL_SYNC_TOKEN@github.com/${{ matrix.repo }}.git" target
+
+      - name: Apply templates to working tree
+        working-directory: target
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --heads origin add-issue-forms-base 2>/dev/null; then
+            echo "::warning::Branch add-issue-forms-base already exists on ${{ matrix.repo }}, skipping"
+            echo "DEPLOY_SKIP=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          git checkout -b add-issue-forms-base
+
+          mkdir -p .github/ISSUE_TEMPLATE .github/workflows
+          cp ../leader/templates/.github/ISSUE_TEMPLATE/bug.yml .github/ISSUE_TEMPLATE/bug.yml
+          cp ../leader/templates/.github/ISSUE_TEMPLATE/feature.yml .github/ISSUE_TEMPLATE/feature.yml
+          cp ../leader/templates/.github/advanced-issue-labeler.yml .github/advanced-issue-labeler.yml
+          cp ../leader/templates/.github/workflows/label-from-issue.yml .github/workflows/label-from-issue.yml
+
+          if git diff --quiet --cached HEAD -- .github 2>/dev/null && [[ -z "$(git status --porcelain .github)" ]]; then
+            echo "::warning::No changes for ${{ matrix.repo }}, already up-to-date"
+            echo "DEPLOY_SKIP=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github
+          git commit -m "feat: add Issue Forms + advanced-issue-labeler
+
+Auto-generated from thkt/github-labels shared templates. See ADR-0059."
+
+      - name: Show diff (dry-run)
+        if: inputs.mode == 'dry-run' && env.DEPLOY_SKIP != '1'
+        working-directory: target
+        run: |
+          echo "=== Files to be added/modified ==="
+          git diff HEAD~1 --stat
+          echo ""
+          echo "=== Full diff ==="
+          git diff HEAD~1
+
+      - name: Push branch and open PR
+        if: inputs.mode == 'apply' && env.DEPLOY_SKIP != '1'
+        working-directory: target
+        env:
+          GH_TOKEN: ${{ secrets.LABEL_SYNC_TOKEN }}
+        run: |
+          git push -u origin add-issue-forms-base
+
+          gh pr create \
+            --repo "${{ matrix.repo }}" \
+            --base main \
+            --head add-issue-forms-base \
+            --title "feat: add Issue Forms + advanced-issue-labeler" \
+            --body "Auto-generated from thkt/github-labels shared templates. See ADR-0059 for the rationale.
+
+Adds the following:
+
+- .github/ISSUE_TEMPLATE/bug.yml
+- .github/ISSUE_TEMPLATE/feature.yml
+- .github/advanced-issue-labeler.yml
+- .github/workflows/label-from-issue.yml
+
+After merge, new issues created via the bug/feature form will be auto-labeled with priority:high/medium/low based on the dropdown selection."
+
+  summary:
+    needs: [read-targets, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Notify on failure
+        if: needs.deploy.result != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          gh issue create \
+            --repo thkt/github-labels \
+            --title "[Template deploy failure] mode=${MODE} run ${{ github.run_id }}" \
+            --body "Template deploy workflow had failed jobs. Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --label priority:high
