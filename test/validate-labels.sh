@@ -78,6 +78,23 @@ else
   pass "T-001-5: 全ラベルに description あり"
 fi
 
+# T-006 (FR-008): yomu の P1/P2/P3 が aliases に登録されている (alias migration 準備)
+LOCAL_FAILED=0
+ALIAS_PAIRS=(
+  "P1|priority:high"
+  "P2|priority:medium"
+  "P3|priority:low"
+)
+for pair in "${ALIAS_PAIRS[@]}"; do
+  old_name="${pair%%|*}"
+  canonical="${pair#*|}"
+  if ! yq -e ".labels[] | select(.name == \"$canonical\") | .aliases[] | select(. == \"$old_name\")" "$LABELS_YML" >/dev/null 2>&1; then
+    fail "T-006: '$old_name' が '$canonical' の aliases に無い"
+    LOCAL_FAILED=1
+  fi
+done
+[[ $LOCAL_FAILED -eq 0 ]] && pass "T-006: P1/P2/P3 → priority:* aliases 検証完了"
+
 if [[ $EXIT_CODE -eq 0 ]]; then
   echo ""
   echo "ALL TESTS PASSED"

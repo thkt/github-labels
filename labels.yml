@@ -36,12 +36,18 @@ labels:
   - name: priority:high
     color: B60205
     description: Top of stack, work on next
+    aliases:
+      - P1
   - name: priority:medium
     color: E4A607
     description: Default priority, no special urgency
+    aliases:
+      - P2
   - name: priority:low
     color: 0E8A16
     description: Backlog, optional or future work
+    aliases:
+      - P3
 
   # ========== Preserve list (Dependabot / CI / language tag co-existence) ==========
   - name: dependencies
