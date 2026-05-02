@@ -89,9 +89,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github
-          git commit -m "feat: add Issue Forms + advanced-issue-labeler
-
-Auto-generated from thkt/github-labels shared templates. See ADR-0059."
+          git commit -m "feat: add Issue Forms + advanced-issue-labeler (auto-generated from thkt/github-labels, ADR-0059)"
 
       - name: Show diff (dry-run)
         if: inputs.mode == 'dry-run' && env.DEPLOY_SKIP != '1'
@@ -111,21 +109,13 @@ Auto-generated from thkt/github-labels shared templates. See ADR-0059."
         run: |
           git push -u origin add-issue-forms-base
 
+          PR_BODY=$(printf 'Auto-generated from thkt/github-labels shared templates. See ADR-0059 for the rationale.\n\nAdds:\n- .github/ISSUE_TEMPLATE/bug.yml\n- .github/ISSUE_TEMPLATE/feature.yml\n- .github/advanced-issue-labeler.yml\n- .github/workflows/label-from-issue.yml\n\nAfter merge, new issues via the bug/feature form get auto-labeled with priority:high/medium/low.')
           gh pr create \
             --repo "${{ matrix.repo }}" \
             --base main \
             --head add-issue-forms-base \
             --title "feat: add Issue Forms + advanced-issue-labeler" \
-            --body "Auto-generated from thkt/github-labels shared templates. See ADR-0059 for the rationale.
-
-Adds the following:
-
-- .github/ISSUE_TEMPLATE/bug.yml
-- .github/ISSUE_TEMPLATE/feature.yml
-- .github/advanced-issue-labeler.yml
-- .github/workflows/label-from-issue.yml
-
-After merge, new issues created via the bug/feature form will be auto-labeled with priority:high/medium/low based on the dropdown selection."
+            --body "$PR_BODY"
 
   summary:
     needs: [read-targets, deploy]
