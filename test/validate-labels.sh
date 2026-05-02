@@ -110,8 +110,8 @@ if [[ -f "$TARGET_REPOS" ]]; then
     LOCAL_FAILED=1
   fi
   COUNT=$(grep -v '^[[:space:]]*$' "$TARGET_REPOS" | grep -v '^#' | wc -l | tr -d ' ')
-  if [[ "$COUNT" -lt 25 ]]; then
-    fail "T-007: target_repos.txt repo数が少ない ($COUNT < 25)"
+  if [[ "$COUNT" -lt 20 ]]; then
+    fail "T-007: target_repos.txt repo数が少ない ($COUNT < 20)"
     LOCAL_FAILED=1
   fi
   [[ $LOCAL_FAILED -eq 0 ]] && pass "T-007: target_repos.txt 検証完了 ($COUNT repos)"

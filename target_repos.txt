@@ -13,13 +13,8 @@ thkt/gates
 thkt/chronicler
 thkt/litmus
 thkt/notch
-thkt/worktree
-thkt/homebrew-tap
 thkt/claude-idr
-thkt/cchistory
-thkt/trello-cli
 thkt/dotclaude
-thkt/CCPlanView
 thkt/delta
 thkt/sentinels
 thkt/kagami-plugin
