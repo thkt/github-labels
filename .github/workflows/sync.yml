@@ -1,0 +1,56 @@
+name: Sync labels
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Target repo (owner/name format, e.g. thkt/yomu)
+        required: true
+        type: string
+      mode:
+        description: Sync mode
+        required: true
+        type: choice
+        options:
+          - dry-run
+          - apply
+        default: dry-run
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync ${{ inputs.target }} (${{ inputs.mode }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout leader repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate labels.yml
+        run: yq '.labels' labels.yml > /dev/null
+
+      - name: Run github-label-sync
+        env:
+          LABEL_SYNC_TOKEN: ${{ secrets.LABEL_SYNC_TOKEN }}
+        run: |
+          if [[ -z "$LABEL_SYNC_TOKEN" ]]; then
+            echo "::error::LABEL_SYNC_TOKEN secret is missing"
+            exit 1
+          fi
+
+          DRY_RUN_FLAG=""
+          if [[ "${{ inputs.mode }}" == "dry-run" ]]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+
+          npx --yes github-label-sync \
+            --access-token "$LABEL_SYNC_TOKEN" \
+            --labels labels.yml \
+            $DRY_RUN_FLAG \
+            "${{ inputs.target }}"
