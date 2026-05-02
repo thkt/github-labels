@@ -1,66 +1,68 @@
 # thkt/github-labels - Tier 3 lite label config
 # Used by Micnews/github-label-sync to synchronize labels across thkt org dev/tool repositories.
 # See ADR-0059 for the rationale and CONTRIBUTING.md for usage rules.
+#
+# Format: github-label-sync expects a root-level YAML list (no `labels:` wrapper).
+# Each entry: name, color (hex without #), description, aliases (optional list).
 
-labels:
-  # ========== GitHub default labels (preserve unmodified) ==========
-  - name: bug
-    color: d73a4a
-    description: Something isn't working
-  - name: documentation
-    color: 0075ca
-    description: Improvements or additions to documentation
-  - name: duplicate
-    color: cfd3d7
-    description: This issue or pull request already exists
-  - name: enhancement
-    color: a2eeef
-    description: New feature or request
-  - name: good first issue
-    color: 7057ff
-    description: Good for newcomers
-  - name: help wanted
-    color: 008672
-    description: Extra attention is needed
-  - name: invalid
-    color: e4e669
-    description: This doesn't seem right
-  - name: question
-    color: d876e3
-    description: Further information is requested
-  - name: wontfix
-    color: ffffff
-    description: This will not be worked on
+# ========== GitHub default labels (preserve unmodified) ==========
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+- name: documentation
+  color: 0075ca
+  description: Improvements or additions to documentation
+- name: duplicate
+  color: cfd3d7
+  description: This issue or pull request already exists
+- name: enhancement
+  color: a2eeef
+  description: New feature or request
+- name: good first issue
+  color: 7057ff
+  description: Good for newcomers
+- name: help wanted
+  color: 008672
+  description: Extra attention is needed
+- name: invalid
+  color: e4e669
+  description: This doesn't seem right
+- name: question
+  color: d876e3
+  description: Further information is requested
+- name: wontfix
+  color: ffffff
+  description: This will not be worked on
 
-  # ========== priority:* (graduated red -> orange -> yellow/green) ==========
-  - name: priority:high
-    color: B60205
-    description: Top of stack, work on next
-    aliases:
-      - P1
-  - name: priority:medium
-    color: E4A607
-    description: Default priority, no special urgency
-    aliases:
-      - P2
-  - name: priority:low
-    color: 0E8A16
-    description: Backlog, optional or future work
-    aliases:
-      - P3
+# ========== priority:* (graduated red -> orange -> yellow/green) ==========
+- name: priority:high
+  color: B60205
+  description: Top of stack, work on next
+  aliases:
+    - P1
+- name: priority:medium
+  color: E4A607
+  description: Default priority, no special urgency
+  aliases:
+    - P2
+- name: priority:low
+  color: 0E8A16
+  description: Backlog, optional or future work
+  aliases:
+    - P3
 
-  # ========== Preserve list (Dependabot / CI / language tag co-existence) ==========
-  - name: dependencies
-    color: 0366d6
-    description: Pull requests that update a dependency file
-  - name: ci
-    color: fbca04
-    description: Continuous integration / GitHub Actions
-  - name: rust
-    color: dea584
-    description: Rust language / Cargo dependencies
+# ========== Preserve list (Dependabot / CI / language tag co-existence) ==========
+- name: dependencies
+  color: 0366d6
+  description: Pull requests that update a dependency file
+- name: ci
+  color: fbca04
+  description: Continuous integration / GitHub Actions
+- name: rust
+  color: dea584
+  description: Rust language / Cargo dependencies
 
-  # ========== area:* (lazy enumeration, repo-by-repo opt-in) ==========
-  # area:* labels are added per-repo via per-repo advanced-issue-labeler.yml extension.
-  # Reserve the prefix here for color consistency only. Initial value: none.
-  # See CONTRIBUTING.md for area:* opt-in process.
+# ========== area:* (lazy enumeration, repo-by-repo opt-in) ==========
+# area:* labels are added per-repo via per-repo advanced-issue-labeler.yml extension.
+# Reserve the prefix here for color consistency only. Initial value: none.
+# See CONTRIBUTING.md for area:* opt-in process.

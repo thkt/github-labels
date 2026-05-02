@@ -15,18 +15,18 @@ pass() {
   echo "PASS: $1"
 }
 
-# T-001-1: yq parse 成功
-if ! yq '.labels' "$LABELS_YML" >/dev/null 2>&1; then
-  fail "T-001-1: labels.yml が yq で parse 不可"
+# T-001-1: yq parse 成功 (root が array であること)
+if ! yq -e '. | type == "!!seq"' "$LABELS_YML" >/dev/null 2>&1; then
+  fail "T-001-1: labels.yml の root が array でない (github-label-sync は root list 形式必須)"
 else
-  pass "T-001-1: labels.yml yq parse 成功"
+  pass "T-001-1: labels.yml yq parse 成功 (root array)"
 fi
 
 # T-001-2: GitHub標準9個が含まれる
 REQUIRED_DEFAULTS=(bug documentation duplicate enhancement "good first issue" "help wanted" invalid question wontfix)
 LOCAL_FAILED=0
 for label in "${REQUIRED_DEFAULTS[@]}"; do
-  if ! yq -e ".labels[] | select(.name == \"$label\")" "$LABELS_YML" >/dev/null 2>&1; then
+  if ! yq -e ".[] | select(.name == \"$label\")" "$LABELS_YML" >/dev/null 2>&1; then
     fail "T-001-2: 標準ラベル '$label' が無い"
     LOCAL_FAILED=1
   fi
@@ -36,7 +36,7 @@ done
 # T-001-3: priority:* 3個が含まれる（high, medium, low）
 LOCAL_FAILED=0
 for prio in high medium low; do
-  if ! yq -e ".labels[] | select(.name == \"priority:$prio\")" "$LABELS_YML" >/dev/null 2>&1; then
+  if ! yq -e ".[] | select(.name == \"priority:$prio\")" "$LABELS_YML" >/dev/null 2>&1; then
     fail "T-001-3: priority:$prio が無い"
     LOCAL_FAILED=1
   fi
@@ -46,7 +46,7 @@ done
 # T-001-4: preserve list（dependencies, ci, rust）が labels.yml に明示
 LOCAL_FAILED=0
 for label in dependencies ci rust; do
-  if ! yq -e ".labels[] | select(.name == \"$label\")" "$LABELS_YML" >/dev/null 2>&1; then
+  if ! yq -e ".[] | select(.name == \"$label\")" "$LABELS_YML" >/dev/null 2>&1; then
     fail "T-001-4: preserve list の '$label' が無い"
     LOCAL_FAILED=1
   fi
@@ -54,9 +54,9 @@ done
 [[ $LOCAL_FAILED -eq 0 ]] && pass "T-001-4: preserve list 3個 検証完了"
 
 # FR-014: 色規律 priority:* は graduated red→orange→yellow
-PRIORITY_HIGH_COLOR=$(yq -r '.labels[] | select(.name == "priority:high") | .color' "$LABELS_YML")
-PRIORITY_MEDIUM_COLOR=$(yq -r '.labels[] | select(.name == "priority:medium") | .color' "$LABELS_YML")
-PRIORITY_LOW_COLOR=$(yq -r '.labels[] | select(.name == "priority:low") | .color' "$LABELS_YML")
+PRIORITY_HIGH_COLOR=$(yq -r '.[] | select(.name == "priority:high") | .color' "$LABELS_YML")
+PRIORITY_MEDIUM_COLOR=$(yq -r '.[] | select(.name == "priority:medium") | .color' "$LABELS_YML")
+PRIORITY_LOW_COLOR=$(yq -r '.[] | select(.name == "priority:low") | .color' "$LABELS_YML")
 
 # 期待値: high=red系 (B60205), medium=orange系 (E4A607), low=yellow/green系 (0E8A16 or yellow)
 if [[ "$PRIORITY_HIGH_COLOR" != "B60205" ]]; then
@@ -71,7 +71,7 @@ fi
 pass "FR-014: priority:* graduated color 検証完了"
 
 # T-001-5: 全ラベルに description がある
-LABELS_WITHOUT_DESC=$(yq -r '.labels[] | select(.description == null or .description == "") | .name' "$LABELS_YML")
+LABELS_WITHOUT_DESC=$(yq -r '.[] | select(.description == null or .description == "") | .name' "$LABELS_YML")
 if [[ -n "$LABELS_WITHOUT_DESC" ]]; then
   fail "T-001-5: description 欠落のラベル: $LABELS_WITHOUT_DESC"
 else
@@ -88,7 +88,7 @@ ALIAS_PAIRS=(
 for pair in "${ALIAS_PAIRS[@]}"; do
   old_name="${pair%%|*}"
   canonical="${pair#*|}"
-  if ! yq -e ".labels[] | select(.name == \"$canonical\") | .aliases[] | select(. == \"$old_name\")" "$LABELS_YML" >/dev/null 2>&1; then
+  if ! yq -e ".[] | select(.name == \"$canonical\") | .aliases[] | select(. == \"$old_name\")" "$LABELS_YML" >/dev/null 2>&1; then
     fail "T-006: '$old_name' が '$canonical' の aliases に無い"
     LOCAL_FAILED=1
   fi

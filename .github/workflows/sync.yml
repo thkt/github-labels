@@ -33,7 +33,9 @@ jobs:
           node-version: 20
 
       - name: Validate labels.yml
-        run: yq '.labels' labels.yml > /dev/null
+        run: |
+          yq -e '. | type == "!!seq"' labels.yml > /dev/null || \
+            (echo "::error::labels.yml must be a root-level YAML list" && exit 1)
 
       - name: Run github-label-sync
         env:
