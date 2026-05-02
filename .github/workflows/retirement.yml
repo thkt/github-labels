@@ -1,0 +1,86 @@
+name: Quarterly label retirement scan
+
+on:
+  schedule:
+    - cron: '0 9 1 1,4,7,10 *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan all target repos for unused labels
+        env:
+          LABEL_SYNC_TOKEN: ${{ secrets.LABEL_SYNC_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$LABEL_SYNC_TOKEN" ]]; then
+            echo "::error::LABEL_SYNC_TOKEN secret is missing"
+            exit 1
+          fi
+
+          REPORT_FILE="/tmp/retirement-report.md"
+          echo "# Quarterly retirement scan ($(date -u +'%Y-%m-%d'))" > "$REPORT_FILE"
+          echo "" >> "$REPORT_FILE"
+          echo "Scan period: issues updated within the last 6 months." >> "$REPORT_FILE"
+          echo "" >> "$REPORT_FILE"
+
+          SIX_MONTHS_AGO=$(date -u -d '6 months ago' +'%Y-%m-%d' 2>/dev/null || date -u -v-6m +'%Y-%m-%d')
+          CANDIDATES_FOUND=0
+
+          while IFS= read -r repo; do
+            [[ -z "$repo" || "$repo" =~ ^# ]] && continue
+
+            UNUSED_LABELS=()
+
+            LABELS=$(gh api -H "Accept: application/vnd.github+json" \
+              "repos/$repo/labels?per_page=100" \
+              --jq '.[].name' 2>/dev/null || echo "")
+
+            while IFS= read -r label; do
+              [[ -z "$label" ]] && continue
+
+              ENC_LABEL=$(printf '%s' "$label" | jq -sRr @uri)
+              COUNT=$(gh api -H "Accept: application/vnd.github+json" \
+                "search/issues?q=repo:$repo+label:%22$ENC_LABEL%22+updated:>=$SIX_MONTHS_AGO" \
+                --jq '.total_count' 2>/dev/null || echo "0")
+
+              if [[ "$COUNT" == "0" ]]; then
+                UNUSED_LABELS+=("$label")
+              fi
+            done <<< "$LABELS"
+
+            if [[ ${#UNUSED_LABELS[@]} -gt 0 ]]; then
+              CANDIDATES_FOUND=$((CANDIDATES_FOUND + ${#UNUSED_LABELS[@]}))
+              echo "## $repo (${#UNUSED_LABELS[@]} unused)" >> "$REPORT_FILE"
+              for label in "${UNUSED_LABELS[@]}"; do
+                echo "- \`$label\`" >> "$REPORT_FILE"
+              done
+              echo "" >> "$REPORT_FILE"
+            fi
+          done < target_repos.txt
+
+          echo "" >> "$REPORT_FILE"
+          echo "Total retirement candidates: $CANDIDATES_FOUND" >> "$REPORT_FILE"
+          echo "" >> "$REPORT_FILE"
+          echo "Action: review per-repo, decide to keep, rename via aliases, or remove from labels.yml + sync." >> "$REPORT_FILE"
+
+          cat "$REPORT_FILE"
+
+          if [[ $CANDIDATES_FOUND -gt 0 ]]; then
+            gh issue create \
+              --repo thkt/github-labels \
+              --title "[Retirement scan] $(date -u +'%Y-%m-%d') ($CANDIDATES_FOUND candidates)" \
+              --body-file "$REPORT_FILE" \
+              --label priority:low
+          else
+            echo "No retirement candidates this quarter."
+          fi
