@@ -95,6 +95,30 @@ for pair in "${ALIAS_PAIRS[@]}"; do
 done
 [[ $LOCAL_FAILED -eq 0 ]] && pass "T-006: P1/P2/P3 → priority:* aliases 検証完了"
 
+# T-007 (FR-004): target_repos.txt が valid (全行 thkt/ で始まる、重複なし)
+TARGET_REPOS="$(dirname "$0")/../target_repos.txt"
+if [[ -f "$TARGET_REPOS" ]]; then
+  LOCAL_FAILED=0
+  INVALID_LINES=$(grep -v '^[[:space:]]*$' "$TARGET_REPOS" | grep -v '^#' | grep -v '^thkt/' || true)
+  if [[ -n "$INVALID_LINES" ]]; then
+    fail "T-007: target_repos.txt に thkt/ で始まらない行: $INVALID_LINES"
+    LOCAL_FAILED=1
+  fi
+  DUP=$(grep -v '^[[:space:]]*$' "$TARGET_REPOS" | grep -v '^#' | sort | uniq -d || true)
+  if [[ -n "$DUP" ]]; then
+    fail "T-007: target_repos.txt に重複: $DUP"
+    LOCAL_FAILED=1
+  fi
+  COUNT=$(grep -v '^[[:space:]]*$' "$TARGET_REPOS" | grep -v '^#' | wc -l | tr -d ' ')
+  if [[ "$COUNT" -lt 25 ]]; then
+    fail "T-007: target_repos.txt repo数が少ない ($COUNT < 25)"
+    LOCAL_FAILED=1
+  fi
+  [[ $LOCAL_FAILED -eq 0 ]] && pass "T-007: target_repos.txt 検証完了 ($COUNT repos)"
+else
+  echo "INFO: target_repos.txt 未配備、検証スキップ"
+fi
+
 if [[ $EXIT_CODE -eq 0 ]]; then
   echo ""
   echo "ALL TESTS PASSED"

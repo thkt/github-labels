@@ -1,0 +1,96 @@
+name: Sync labels (matrix)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Sync mode for all repos in target_repos.txt
+        required: true
+        type: choice
+        options:
+          - dry-run
+          - apply
+        default: dry-run
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  read-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.read.outputs.repos }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          REPOS=$(grep -v '^[[:space:]]*$' target_repos.txt | grep -v '^#' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
+          echo "Repo count: $(echo "$REPOS" | jq 'length')"
+
+  sync:
+    needs: read-targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        repo: ${{ fromJson(needs.read-targets.outputs.repos) }}
+    name: Sync ${{ matrix.repo }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate labels.yml
+        run: |
+          yq -e '. | type == "!!seq"' labels.yml > /dev/null || \
+            (echo "::error::labels.yml must be a root-level YAML list" && exit 1)
+
+      - name: Run github-label-sync
+        env:
+          LABEL_SYNC_TOKEN: ${{ secrets.LABEL_SYNC_TOKEN }}
+        run: |
+          if [[ -z "$LABEL_SYNC_TOKEN" ]]; then
+            echo "::error::LABEL_SYNC_TOKEN secret is missing"
+            exit 1
+          fi
+
+          DRY_RUN_FLAG=""
+          if [[ "${{ inputs.mode }}" == "dry-run" ]]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+
+          npx --yes github-label-sync \
+            --access-token "$LABEL_SYNC_TOKEN" \
+            --labels labels.yml \
+            $DRY_RUN_FLAG \
+            "${{ matrix.repo }}"
+
+  summary:
+    needs: [read-targets, sync]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check matrix outcome
+        if: needs.sync.result != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create \
+            --repo thkt/github-labels \
+            --title "[Sync failure] matrix ${MODE} run ${{ github.run_id }}" \
+            --body "Matrix sync workflow had failed jobs. Run URL: ${RUN_URL}" \
+            --label priority:high
+
+      - name: Pass summary
+        if: needs.sync.result == 'success'
+        run: |
+          echo "All matrix sync jobs completed successfully (mode: ${{ inputs.mode }})"
